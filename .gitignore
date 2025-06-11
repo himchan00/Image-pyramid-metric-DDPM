@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Datasets
+CIFAR10/
+
+# Model checkpoints
+*.pt

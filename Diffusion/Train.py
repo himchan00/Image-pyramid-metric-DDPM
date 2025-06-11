@@ -13,7 +13,7 @@ from torchvision.utils import save_image
 from Diffusion import GaussianDiffusionSampler, GaussianDiffusionTrainer
 from Diffusion.Model import UNet
 from Scheduler import GradualWarmupScheduler
-
+from image_pyramid_metric.ipm_transform import ipm_transform, ipm_inv_transform
 
 def train(modelConfig: Dict):
     device = torch.device(modelConfig["device"])
@@ -24,6 +24,7 @@ def train(modelConfig: Dict):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ipm_transform() if modelConfig["use_ipm"] else transforms.Lambda(lambda x: x)
         ]))
     dataloader = DataLoader(
         dataset, batch_size=modelConfig["batch_size"], shuffle=True, num_workers=4, drop_last=True, pin_memory=True)
@@ -44,7 +45,7 @@ def train(modelConfig: Dict):
         net_model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"]).to(device)
 
     # start training
-    for e in range(modelConfig["epoch"]):
+    for e in range(1, modelConfig["epoch"]+1):
         with tqdm(dataloader, dynamic_ncols=True) as tqdmDataLoader:
             for images, labels in tqdmDataLoader:
                 # train
@@ -62,8 +63,10 @@ def train(modelConfig: Dict):
                     "LR": optimizer.state_dict()['param_groups'][0]["lr"]
                 })
         warmUpScheduler.step()
-        torch.save(net_model.state_dict(), os.path.join(
-            modelConfig["save_weight_dir"], 'ckpt_' + str(e) + "_.pt"))
+        if e % modelConfig["save_iter"] == 0:
+            info = "use_ipm_" if modelConfig["use_ipm"] else ""
+            torch.save(net_model.state_dict(), os.path.join(
+                modelConfig["save_weight_dir"], info + 'ckpt_' + str(e) + "_.pt"))
 
 
 def eval(modelConfig: Dict):
@@ -82,10 +85,12 @@ def eval(modelConfig: Dict):
         # Sampled from standard normal distribution
         noisyImage = torch.randn(
             size=[modelConfig["batch_size"], 3, 32, 32], device=device)
-        saveNoisy = torch.clamp(noisyImage * 0.5 + 0.5, 0, 1)
+        saveNoisy = ipm_inv_transform()(saveNoisy) if modelConfig["use_ipm"] else saveNoisy
+        saveNoisy = noisyImage * 0.5 + 0.5
         save_image(saveNoisy, os.path.join(
             modelConfig["sampled_dir"], modelConfig["sampledNoisyImgName"]), nrow=modelConfig["nrow"])
         sampledImgs = sampler(noisyImage)
+        sampledImgs = ipm_inv_transform()(sampledImgs) if modelConfig["use_ipm"] else sampledImgs
         sampledImgs = sampledImgs * 0.5 + 0.5  # [0 ~ 1]
         save_image(sampledImgs, os.path.join(
             modelConfig["sampled_dir"],  modelConfig["sampledImgName"]), nrow=modelConfig["nrow"])

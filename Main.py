@@ -21,11 +21,13 @@ def main(model_config = None):
         "device": "cuda:0", ### MAKE SURE YOU HAVE A GPU !!!
         "training_load_weight": None,
         "save_weight_dir": "./Checkpoints/",
+        "save_iter": 10, # save model every 10 epochs
         "test_load_weight": "ckpt_199_.pt",
         "sampled_dir": "./SampledImgs/",
         "sampledNoisyImgName": "NoisyNoGuidenceImgs.png",
         "sampledImgName": "SampledNoGuidenceImgs.png",
-        "nrow": 8
+        "nrow": 8,
+        "use_ipm": False # use image pyramid metric
         }
     if model_config is not None:
         modelConfig = model_config
